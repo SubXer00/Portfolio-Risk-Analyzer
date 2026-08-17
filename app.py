@@ -62,6 +62,11 @@ st.markdown(
         margin-bottom: 12px;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
     }
+    /* Hide the blank grey placeholder box Streamlit renders above st.metric() labels */
+    .metric-container-card [data-testid="stMetricLabel"] > div:empty,
+    .metric-container-card [data-testid="metric-container"] > div:first-child:empty {
+        display: none !important;
+    }
     .metric-caption {
         font-size: 0.82rem;
         line-height: 1.35;
@@ -452,9 +457,12 @@ with tab_metrics:
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("#### 💡 Key Takeaway & Risk Interpretation")
+    # Use \\$ to prevent Streamlit from treating dollar amounts as LaTeX math delimiters
     st.info(
-        f"• **VaR vs. CVaR:** While your 1-day 95% VaR is **{var_pct * 100:.2f}%** (${var_dollars:,.2f}), "
-        f"if the market breaks below this threshold into the worst 5% tail, the expected average loss increases to **{cvar_pct * 100:.2f}%** (${cvar_dollars:,.2f})."
+        f"\u2022 **VaR vs. CVaR:** While your 1-day 95% VaR is **{var_pct * 100:.2f}%** "
+        f"(\\${var_dollars:,.2f}), if the market breaks below this threshold into the worst "
+        f"5% tail, the expected average loss increases to **{cvar_pct * 100:.2f}%** "
+        f"(\\${cvar_dollars:,.2f})."
     )
 
 
