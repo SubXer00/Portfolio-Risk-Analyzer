@@ -63,6 +63,26 @@ def calculate_historical_var(
     return var_pct_loss, var_dollar_loss
 
 
+def calculate_expected_shortfall(
+    returns: pd.Series,
+    confidence_level: float = 0.95,
+    portfolio_value: float = 100000.0,
+) -> Tuple[float, float]:
+    """Computes 1-day Expected Shortfall (CVaR) as the average of returns at or below the historical VaR threshold."""
+    percentile_cutoff = (1.0 - confidence_level) * 100.0
+    var_cutoff = float(np.percentile(returns, percentile_cutoff))
+    # Filter returns at or below the VaR cutoff
+    tail_returns = returns[returns <= var_cutoff]
+    if len(tail_returns) == 0:
+        cvar_cutoff = var_cutoff
+    else:
+        cvar_cutoff = float(tail_returns.mean())
+    # Express CVaR as a positive loss magnitude
+    cvar_pct_loss = max(0.0, -cvar_cutoff) if cvar_cutoff < 0 else 0.0
+    cvar_dollar_loss = cvar_pct_loss * portfolio_value
+    return cvar_pct_loss, cvar_dollar_loss
+
+
 def calculate_correlation_matrix(returns_df: pd.DataFrame) -> pd.DataFrame:
     """Computes Pearson correlation coefficient matrix between individual asset daily returns."""
     return returns_df.corr()
@@ -71,3 +91,4 @@ def calculate_correlation_matrix(returns_df: pd.DataFrame) -> pd.DataFrame:
 def calculate_cumulative_returns(returns: pd.Series) -> pd.Series:
     """Computes compounded cumulative portfolio return series: cumprod(1 + R) - 1."""
     return (1.0 + returns).cumprod() - 1.0
+

@@ -1,6 +1,24 @@
 # 📊 Portfolio Risk Analyzer
 
-A clean, production-ready Python web application built with **Streamlit** that allows investors to analyze stock portfolios, calculate key risk metrics, evaluate downside risk via Historical Value at Risk (VaR), and discover asset risk/return regimes using unsupervised K-Means clustering.
+A clean, production-ready Python web application built with **Streamlit** that allows investors to analyze stock portfolios, calculate key risk metrics, evaluate downside risk via Historical Value at Risk (VaR) and Expected Shortfall (CVaR), discover asset risk/return regimes using unsupervised K-Means clustering, and predict high-risk breach events using supervised machine learning.
+
+---
+
+## 🏛️ System Architecture
+
+```mermaid
+flowchart TD
+    A[Yahoo Finance / yfinance] -->|Adjusted Close & Volume| B[Data Preprocessing Engine]
+    B -->|Cleaned Returns & Volume Series| C1[risk_metrics.py]
+    B -->|Asset Volatility & Return Features| C2[clustering.py]
+    B -->|Trailing Features & Breach Labels| C3[breach_classifier.py]
+    
+    C1 -->|Volatility, Sharpe, VaR, CVaR, Corr| D[Streamlit UI app.py]
+    C2 -->|Asset Clusters & Scatter Data| D
+    C3 -->|Precision, Recall, F1, Confusion Matrix, Feature Importance| D
+    
+    D -->|Deploy via GitHub| E[Streamlit Community Cloud]
+```
 
 ---
 
@@ -11,12 +29,12 @@ A clean, production-ready Python web application built with **Streamlit** that a
 - Git
 
 ### 1. Local Setup
-Clone the repository (or navigate to the project directory) and install dependencies:
+Clone the repository and install dependencies:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/portfolio-risk-analyzer.git
-cd portfolio-risk-analyzer
+git clone https://github.com/SubXer00/Portfolio-Risk-Analyzer.git
+cd Portfolio-Risk-Analyzer
 
 # (Optional) Create and activate a virtual environment
 python -m venv venv
@@ -44,11 +62,11 @@ Open your browser and navigate to `http://localhost:8501`.
 
 This project is configured for one-click deployment on [Streamlit Community Cloud](https://streamlit.io/cloud):
 
-1. Push this repository to GitHub (ensure `app.py`, `risk_metrics.py`, `clustering.py`, and `requirements.txt` are at the repository root).
+1. Push this repository to GitHub (ensure `app.py`, `risk_metrics.py`, `clustering.py`, `breach_classifier.py`, and `requirements.txt` are at the repository root).
 2. Log in to [Streamlit Community Cloud](https://share.streamlit.io/).
-3. Click **"New app"**.
-4. Select your GitHub repository, branch (`main`), and set the main file path to `app.py`.
-5. Click **"Deploy"**! Streamlit will automatically install dependencies from `requirements.txt` and serve the app.
+3. Click **"Create app"** ➔ **"I already have an app"**.
+4. Select your GitHub repository (`SubXer00/Portfolio-Risk-Analyzer`), branch (`main`), and main file path (`app.py`).
+5. Click **"Deploy!"**. Streamlit will automatically install dependencies from `requirements.txt` and launch the app.
 
 ---
 
@@ -57,12 +75,15 @@ This project is configured for one-click deployment on [Streamlit Community Clou
 The project strictly decouples financial mathematics and machine learning from UI rendering to ensure clean unit-testability and maintainability:
 
 ```text
-├── app.py              # Streamlit web interface, inputs, charts, and layout
-├── risk_metrics.py     # Pure financial mathematical functions (no UI dependencies)
-├── clustering.py       # Unsupervised K-Means clustering module (scikit-learn)
-├── test_analyzer.py    # Automated unit test suite
-├── requirements.txt    # Pinned dependencies for local and cloud environments
-└── README.md           # Project documentation and financial theory guide
+├── .streamlit/
+│   └── config.toml         # Custom financial dark theme configuration
+├── app.py                  # Streamlit tabbed UI, dashboard layout, and visual components
+├── risk_metrics.py         # Pure financial mathematics (Volatility, Sharpe, VaR, CVaR, Corr)
+├── clustering.py           # Unsupervised K-Means clustering module (scikit-learn)
+├── breach_classifier.py    # Supervised VaR breach classification & feature importance module
+├── test_analyzer.py        # Automated unit test suite (15 unit tests)
+├── requirements.txt        # Pinned dependencies for local and cloud environments
+└── README.md               # System architecture, formulas, and user guide
 ```
 
 ---
@@ -79,61 +100,61 @@ $$R_{p, t} = \sum_{i=1}^{N} w_i \cdot R_{i, t}$$
 ---
 
 ### 2. Annualized Volatility ($\sigma_{\text{ann}}$)
-Volatility measures the dispersion and uncertainty of returns.
-1. Daily standard deviation $\sigma_{\text{daily}}$ is calculated with $N-1$ degrees of freedom.
-2. Under the standard assumption of independent and identically distributed (i.i.d.) returns across 252 annual US trading days, variance scales linearly with time: $\sigma^2_{\text{ann}} = 252 \times \sigma^2_{\text{daily}}$.
-3. Taking the square root gives the **Square Root of Time Rule**:
+Volatility measures the dispersion of returns scaled using the standard 252 US trading days convention (**Square Root of Time Rule**):
 $$\sigma_{\text{ann}} = \sigma_{\text{daily}} \times \sqrt{252}$$
 
 ---
 
 ### 3. Annualized Sharpe Ratio
-The Sharpe ratio quantifies the excess return generated per unit of total risk compared to a risk-free benchmark $R_f$ (default: 4.0% / 0.04):
+Quantifies excess return generated per unit of total risk above the benchmark risk-free rate $R_f$ (default: 4.0%):
 $$\mu_{\text{ann}} = \mu_{\text{daily}} \times 252$$
 $$\text{Sharpe Ratio} = \frac{\mu_{\text{ann}} - R_f}{\sigma_{\text{ann}}}$$
-
-- **Interpretation**:
-  - $< 1.0$: Sub-optimal risk-adjusted return.
-  - $1.0 - 1.99$: Good risk-adjusted return.
-  - $\ge 2.0$: Very good to excellent risk-adjusted performance.
 
 ---
 
 ### 4. 1-Day 95% Historical Value at Risk (VaR)
-**Historical Value at Risk** is a non-parametric risk measure that estimates downside loss without assuming a normal (Gaussian) distribution, capturing real market fat tails and skewness.
-
-- **Method**: The empirical daily portfolio returns are sorted in ascending order.
-- At 95% confidence, the 1-day VaR corresponds to the **5th percentile** ($\alpha = 0.05$) of the historical distribution:
+Non-parametric quantile calculation on empirical daily portfolio returns:
 $$\text{VaR}_{\text{cutoff}} = \text{Percentile}_{5\%}(R_p)$$
 $$\text{VaR}_{\%} = |\text{VaR}_{\text{cutoff}}| \quad (\text{if } \text{VaR}_{\text{cutoff}} < 0)$$
 $$\text{VaR}_{\$} = \text{VaR}_{\%} \times \text{Portfolio Value}$$
 
-- **Plain-English Meaning**: On 95% of trading days (19 out of 20 days), your 1-day portfolio loss is not expected to exceed $\text{VaR}_{\%}$ ($\text{VaR}_{\$}$).
+- **Meaning**: On 95% of trading days (19 out of 20 days), your 1-day portfolio loss is not expected to exceed $\text{VaR}_{\%}$.
 
 ---
 
-### 5. Asset Return Correlation Matrix
-Measures the linear co-movement between pairs of assets $X$ and $Y$:
-$$\rho_{X, Y} = \frac{\text{Cov}(X, Y)}{\sigma_X \sigma_Y} \in [-1, +1]$$
+### 5. 1-Day 95% Expected Shortfall / Conditional VaR (CVaR)
+While VaR marks the boundary of the worst 5% tail, **Expected Shortfall (CVaR)** answers: *"If a breach happens, how bad is the average loss?"*
+$$\text{CVaR} = \mathbb{E}[R_p \mid R_p \le \text{VaR}_{\text{cutoff}}]$$
+$$\text{CVaR}_{\%} = |\text{CVaR}|$$
+$$\text{CVaR}_{\$} = \text{CVaR}_{\%} \times \text{Portfolio Value}$$
 
-- **Diversification Insight**: Assets with lower or negative correlations mitigate overall portfolio variance according to Markowitz Modern Portfolio Theory.
+- **Mathematical Invariant**: $\text{CVaR}_{\%} \ge \text{VaR}_{\%}$ (the conditional tail mean is always at least as severe as the boundary quantile).
 
 ---
 
 ### 6. Unsupervised K-Means Clustering
+- **Features**: 2D feature vector for each stock: $(\text{Annualized Volatility}, \text{Annualized Return})$.
+- **Algorithm**: `KMeans(n_clusters=k, random_state=42)` grouping assets into risk/return regimes without subjective labels.
 
-#### Why K-Means?
-K-Means partitions $N$ assets into $k$ distinct risk/reward clusters by minimizing within-cluster variance (sum of squared Euclidean distances to cluster centroids):
-$$\min_{\mathbf{S}} \sum_{j=1}^{k} \sum_{\mathbf{x} \in S_j} \|\mathbf{x} - \boldsymbol{\mu}_j\|^2$$
+---
 
-#### Why These Two Features? (Annualized Return & Annualized Volatility)
-In financial economics, assets are fundamentally evaluated on the two-dimensional tradeoff between **expected return** (reward) and **volatility** (risk). Clustering in this $(\sigma_{\text{ann}}, \mu_{\text{ann}})$ feature space segments holdings into intuitive categories:
-- **Low Risk / Stable Return**: Defensive assets, utilities, dividend-yielding equities (e.g., JPM, XOM in specific market cycles).
-- **High Risk / High Return**: High-beta growth and tech assets (e.g., NVDA, TSLA, AAPL).
-- **High Risk / Low Return**: Underperforming high-volatility holdings that drag down the Sharpe ratio.
+### 7. Supervised VaR Breach Classifier & Feature Importance
 
-#### Why Unsupervised?
-Because risk regimes are intrinsic structures in asset dynamics rather than labeled targets, unsupervised clustering allows the data to speak for itself without arbitrary classification thresholds or overfitting risks.
+#### Goal
+Predict whether day $t$ will experience a **high-risk breach** ($R_{p,t} \le \text{VaR}_{95\%}$).
+
+#### Predictive Features (Strictly Backward-Looking, Zero Look-Ahead Bias)
+1. **Rolling 20-Day Realized Volatility**: Trailing annualized standard deviation over days $[t-20, t-1]$.
+2. **5-Day Momentum**: Trailing compounded return over days $[t-5, t-1]$.
+3. **20-Day Volume Trend**: Percentage deviation of trailing portfolio volume vs. its 20-day moving average over days $[t-20, t-1]$.
+
+#### Time-Series Split
+Chronological train/test split (first 80% for training, last 20% for testing). **No random shuffle** to prevent temporal data leakage.
+
+#### Models & Evaluation
+- **Models**: `RandomForestClassifier` (default) and `LogisticRegression` (with balanced class weights).
+- **Metrics**: Precision, Recall (Sensitivity), F1-score, and Confusion Matrix.
+- **Feature Importance**: MDI feature importances (Random Forest) or regression coefficients (Logistic Regression) explaining the relative predictive influence of each signal.
 
 ---
 
@@ -146,19 +167,20 @@ python -m unittest test_analyzer.py -v
 ```
 
 This verifies:
-- Daily return calculations and shape matching.
-- Portfolio return dot-product weighting.
-- Mathematical precision of annualized volatility, return, and Sharpe ratio.
-- 5th percentile empirical VaR calculations (percentage and dollar amounts).
-- Pearson correlation matrix properties (identity diagonal, symmetry).
+- Daily returns, portfolio dot-product weighting, annualized volatility, return, and Sharpe ratio.
+- 5th percentile empirical VaR and Expected Shortfall (CVaR invariant $\text{CVaR} \ge \text{VaR}$).
+- Pearson correlation matrix properties.
 - Compounded cumulative return series.
 - Scikit-learn K-Means feature extraction and cluster assignment.
+- Supervised feature construction (strictly no lookahead bias).
+- Chronological time-series splitting (zero leakage).
+- Random Forest and Logistic Regression training, evaluation metrics, and feature importance extraction.
 
 ---
 
 ## 🛠️ Tech Stack
-- **UI Framework**: [Streamlit](https://streamlit.io/)
+- **UI Framework**: [Streamlit](https://streamlit.io/) (Tabs, dark theme, responsive metrics)
 - **Financial Data**: [yfinance](https://github.com/ranaroussi/yfinance)
 - **Data Analysis**: [pandas](https://pandas.pydata.org/), [numpy](https://numpy.org/)
-- **Machine Learning**: [scikit-learn](https://scikit-learn.org/) (KMeans)
+- **Machine Learning**: [scikit-learn](https://scikit-learn.org/) (KMeans, RandomForestClassifier, LogisticRegression)
 - **Visualizations**: [matplotlib](https://matplotlib.org/), [seaborn](https://seaborn.pydata.org/)
